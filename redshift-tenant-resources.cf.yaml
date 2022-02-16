@@ -1,0 +1,105 @@
+# Copyright (c) 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# This source code is subject to the terms found in the AWS Enterprise Customer Agreement.
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Redshift onboarding tenant resources
+
+Parameters:
+  TenantName:
+    Description: Enter the name of the tenant or team
+    Type: String
+
+Resources:
+  TenantKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub KMS Key for ${TenantName} tenant S3 data 
+      Enabled: True
+      EnableKeyRotation: True
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: Default Key Policy
+        Statement:
+        - Sid: Enable IAM User Permissions
+          Effect: Allow
+          Principal:
+            AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+          Action: kms:*
+          Resource: '*'  
+
+  TenantKMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${TenantName}-tenant-s3-key
+      TargetKeyId:
+        Ref: TenantKMSKey
+
+  TenantS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+      BucketName: !Sub ${TenantName}-data-${AWS::AccountId}-${AWS::Region}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: aws:kms
+            KMSMasterKeyID: !GetAtt TenantKMSKey.Arn
+       
+
+  TenantRedshiftS3AccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${TenantName}-tenant-redshift-s3-access-role"
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS:
+            - !Sub "arn:aws:iam::${AWS::AccountId}:role/redshift-s3-onboarding-role"
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: TenantRedshiftS3AccessPolicy
+        PolicyDocument: 
+          Version: "2012-10-17"
+          Statement:
+          - Effect: Allow
+            Action:
+            - kms:ListKeys
+            - kms:ListAliases
+            - kms:GetPublicKey
+            - kms:Encrypt
+            - kms:Decrypt
+            - kms:ReEncrypt*
+            - kms:GenerateDataKey*
+            Resource:
+            - !GetAtt TenantKMSKey.Arn
+          - Effect: Allow
+            Action:
+            - s3:GetBucketAcl
+            - s3:GetBucketLocation
+            - s3:ListAllMyBuckets
+            Resource: "arn:aws:s3:::"
+          - Effect: Allow
+            Action:
+            - s3:List*
+            - s3:Get*
+            - s3:Put*
+            Resource:
+            - !Sub arn:aws:s3:::${TenantS3Bucket}/*
+            - !Sub arn:aws:s3:::${TenantS3Bucket}
+
+Outputs:
+  TenantKMSKeyArn:
+    Value: !GetAtt TenantKMSKey.Arn
+  TenantKMSKeyId:
+    Value: !GetAtt TenantKMSKey.KeyId
+  TenantKMSKeyAlias:
+    Value: !Ref TenantKMSKeyAlias
+  TenantS3Bucket:
+    Value: !Ref TenantS3Bucket
+  TenantRedshiftS3AccessRoleArn:
+    Value: !GetAtt TenantRedshiftS3AccessRole.Arn

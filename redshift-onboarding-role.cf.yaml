@@ -1,0 +1,36 @@
+# Copyright (c) 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# This source code is subject to the terms found in the AWS Enterprise Customer Agreement.
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Data Onboarding Role for Redshift 
+
+Resources:
+  RedshiftS3OnboardingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: "Redshift role that will assume tenant roles for S3 access"
+      RoleName: redshift-s3-onboarding-role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - redshift.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: redshift-s3-onboarding-policy  
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+            - Effect: Allow
+              Action:
+              - sts:AssumeRole
+              Resource:
+              - !Sub "arn:aws:iam::${AWS::AccountId}:role/*-tenant-redshift-s3-access-role"
+
+Outputs:
+  RedshiftS3OnboardingRole:
+    Value: !GetAtt RedshiftS3OnboardingRole.Arn
