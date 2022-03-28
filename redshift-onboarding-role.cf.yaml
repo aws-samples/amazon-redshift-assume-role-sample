@@ -1,8 +1,8 @@
-# Copyright (c) 2021 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# Copyright (c) 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # This source code is subject to the terms found in the AWS Enterprise Customer Agreement.
 
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Data Onboarding Role for Redshift 
+Description: Data Onboarding Role for Redshift and S3 Logging Bucket 
 
 Resources:
   RedshiftS3OnboardingRole:
@@ -31,6 +31,36 @@ Resources:
               Resource:
               - !Sub "arn:aws:iam::${AWS::AccountId}:role/*-tenant-redshift-s3-access-role"
 
+  LoggingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: LogDeliveryWrite
+      BucketName: !Sub redshift-tenant-s3-access-logs-${AWS::AccountId}-${AWS::Region}
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  LoggingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref LoggingBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action: s3:*
+            Effect: Deny
+            Principal: "*"
+            Resource:
+              - !Sub arn:aws:s3:::${LoggingBucket}
+              - !Sub arn:aws:s3:::${LoggingBucket}/*
+            Condition:
+              Bool:
+                'aws:SecureTransport': false
 Outputs:
   RedshiftS3OnboardingRole:
     Value: !GetAtt RedshiftS3OnboardingRole.Arn
+  S3AccessLoggingBucket:
+    Value: !Ref LoggingBucket
