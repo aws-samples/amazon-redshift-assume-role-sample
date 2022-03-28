@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# Copyright (c) 2022 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # This source code is subject to the terms found in the AWS Enterprise Customer Agreement.
 
 AWSTemplateFormatVersion: "2010-09-09"
@@ -40,12 +40,32 @@ Resources:
       VersioningConfiguration:
         Status: Enabled
       BucketName: !Sub ${TenantName}-data-${AWS::AccountId}-${AWS::Region}
+      LoggingConfiguration:
+        DestinationBucketName: !Sub redshift-tenant-s3-access-logs-${AWS::AccountId}-${AWS::Region}
+        LogFilePrefix: !Sub ${TenantName}-access-logs
       BucketEncryption:
         ServerSideEncryptionConfiguration:
         - ServerSideEncryptionByDefault:
             SSEAlgorithm: aws:kms
             KMSMasterKeyID: !GetAtt TenantKMSKey.Arn
        
+  TenantS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties: 
+      Bucket: !Ref TenantS3Bucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action: s3:*
+            Effect: Deny
+            Principal: "*"
+            Resource:
+              - !Sub arn:aws:s3:::${TenantS3Bucket}
+              - !Sub arn:aws:s3:::${TenantS3Bucket}/*
+            Condition:
+              Bool:
+                'aws:SecureTransport': false
+
 
   TenantRedshiftS3AccessRole:
     Type: AWS::IAM::Role
@@ -91,6 +111,7 @@ Resources:
             Resource:
             - !Sub arn:aws:s3:::${TenantS3Bucket}/*
             - !Sub arn:aws:s3:::${TenantS3Bucket}
+          
 
 Outputs:
   TenantKMSKeyArn:
